@@ -9,15 +9,22 @@
   ;; execute the command: cargo metadata --manifest-path sync/Cargo.toml | jq -r '.packages.[] | select(.name=="futures").manifest_path'
   ;; and the output should be a file, then jump to the file, readonly
   (let* ((cmd (format "cargo metadata --manifest-path %s 2>/dev/null | jq -r '.packages.[] | select(.name==\"%s\").manifest_path'"
-					  (buffer-file-name)
-					  symbol))
-		 (file (string-trim (shell-command-to-string cmd)))
-		 (base-dir (file-name-directory file))
-		 (lib-file (expand-file-name "src/lib.rs" base-dir)))
-	(unless (string-empty-p file)
-	  (list
-	   (xref-make "summary"
-				  (xref-make-file-location lib-file 1 1))))))
+				(buffer-file-name)
+				symbol))
+		  (files (split-string
+                   (string-trim (shell-command-to-string cmd)) "\n" ))
+          (files (mapcar #'string-trim files))
+		  (base-dirs (mapcar #'file-name-directory files))
+		  (lib-files
+            (mapcar (lambda (base-dir)
+                      (expand-file-name "src/lib.rs" base-dir))
+              base-dirs)))
+	(when  lib-files
+      ;; (message "lib-files: %s" lib-files)
+      (mapcar (lambda (lib-file)
+                (xref-make lib-file
+                  (xref-make-file-location lib-file 1 1)))
+        lib-files))))
 
 ;;;###autoload
 (defgroup cargo-jump-xref nil
@@ -29,8 +36,8 @@
   "cargo jump backend for Xref."
   ;; when current buffer's file is `Cargo.toml', then use this backend
   (when (and
-		 (buffer-file-name)
-		 (string= "Cargo.toml" (file-name-nondirectory (buffer-file-name))))
+		  (buffer-file-name)
+		  (string= "Cargo.toml" (file-name-nondirectory (buffer-file-name))))
     'cargo-jump-xref))
 
 
